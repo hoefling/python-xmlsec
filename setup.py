@@ -48,8 +48,8 @@ class build_ext(build_ext_orig, object):
 
             if sys.platform == 'win32':
                 self.prepare_static_build_win()
-            elif 'linux' in sys.platform:
-                self.prepare_static_build_linux()
+            else:
+                self.prepare_static_build_unix()
         else:
             import pkgconfig
 
@@ -90,12 +90,20 @@ class build_ext(build_ext_orig, object):
                 ]
             )
 
+        if sys.platform == 'darwin':
+            if not any('flat_namespace' in arg for arg in ext.extra_compile_args):
+                ext.extra_compile_args.append('-flat_namespace')
+
         if self.debug:
             ext.extra_compile_args.append('-Wall')
             ext.extra_compile_args.append('-O0')
             ext.define_macros.append(('PYXMLSEC_ENABLE_DEBUG', '1'))
         else:
             ext.extra_compile_args.append('-Os')
+
+        if sys.platform == 'darwin':
+            out = subprocess.check_output(['xcrun', '--show-sdk-path'], env=os.environ.copy())
+            ext.extra_link_args.extend(['-isysroot', out])
 
         super(build_ext, self).run()
 
@@ -173,7 +181,7 @@ class build_ext(build_ext_orig, object):
         includes.append(next(p / 'xmlsec' for p in includes if (p / 'xmlsec').is_dir()))
         ext.include_dirs = [str(p.absolute()) for p in includes]
 
-    def prepare_static_build_linux(self):
+    def prepare_static_build_unix(self):
         self.openssl_version = os.environ.get('OPENSSL_VERSION', '1.1.1g')
         self.libiconv_version = os.environ.get('LIBICONV_VERSION', '1.16')
         self.libxml2_version = os.environ.get('LIBXML2_VERSION', None)
@@ -382,7 +390,9 @@ class build_ext(build_ext_orig, object):
         ext.include_dirs.extend([str(p.absolute()) for p in (self.prefix_dir / 'include').iterdir() if p.is_dir()])
 
         ext.library_dirs = []
-        ext.libraries = ['m', 'rt']
+        ext.libraries = ['m']
+        if 'linux' in sys.platform:
+            ext.libraries.append('rt')
         extra_objects = [
             'libxmlsec1.a',
             'libxslt.a',
