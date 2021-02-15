@@ -15,6 +15,7 @@ if sys.version_info >= (3, 4):
     from urllib.request import urlcleanup, urljoin, urlretrieve
 else:
     from urllib import urlcleanup, urlretrieve
+
     from urlparse import urljoin
 
 
@@ -31,6 +32,7 @@ class build_ext(build_ext_orig, object):
         ext = self.ext_map['xmlsec']
         self.debug = os.environ.get('PYXMLSEC_ENABLE_DEBUG', False)
         self.static = os.environ.get('PYXMLSEC_STATIC_DEPS', False)
+        self.engine = os.environ.get('PYXMLSEC_CRYPTO_ENGINE', '')
 
         if self.static or sys.platform == 'win32':
             self.info('starting static build on {}'.format(sys.platform))
@@ -53,12 +55,16 @@ class build_ext(build_ext_orig, object):
         else:
             import pkgconfig
 
+            pkg = 'xmlsec1'
+            if self.engine == 'nss':
+                pkg = 'xmlsec1-nss'
+
             try:
-                config = pkgconfig.parse('xmlsec1')
+                config = pkgconfig.parse(pkg)
             except EnvironmentError:
                 raise DistutilsError('Unable to invoke pkg-config.')
             except pkgconfig.PackageNotFoundError:
-                raise DistutilsError('xmlsec1 is not installed or not in path.')
+                raise DistutilsError('{} is not installed or not in path.'.format(pkg))
 
             if config is None or not config.get('libraries'):
                 raise DistutilsError('Bad or incomplete result returned from pkg-config.')
@@ -442,7 +448,10 @@ setup(
     maintainer='Oleg Hoefling',
     maintainer_email='oleg.hoefling@gmail.com',
     url='https://github.com/mehcode/python-xmlsec',
-    project_urls={'Documentation': 'https://xmlsec.readthedocs.io', 'Source': 'https://github.com/mehcode/python-xmlsec',},
+    project_urls={
+        'Documentation': 'https://xmlsec.readthedocs.io',
+        'Source': 'https://github.com/mehcode/python-xmlsec',
+    },
     license='MIT',
     keywords=['xmlsec'],
     classifiers=[
