@@ -53,7 +53,10 @@ static void PyXmlSec_Free(int what) {
     free_mode = _PYXMLSEC_FREE_NONE;
 }
 
-static int PyXmlSec_Init(void) {
+#define PyXmlSec_Init() PyXmlSec_Config_Init(NULL)
+
+static int PyXmlSec_Config_Init(char *config) {
+    PYXMLSEC_DEBUGF("config: %s", config);
     if (xmlSecInit() < 0) {
         PyXmlSec_SetLastError("cannot initialize xmlsec library.");
         PyXmlSec_Free(_PYXMLSEC_FREE_NONE);
@@ -67,7 +70,10 @@ static int PyXmlSec_Init(void) {
     }
 
 #ifndef XMLSEC_NO_CRYPTO_DYNAMIC_LOADING
-    if (xmlSecCryptoDLLoadLibrary(PyXmlSec_GetCryptoLibName()) < 0) {
+// TODO xmlSecGetDefaultCrypto() will still return "openssl" if compiled against openssl
+// PyXmlSec_GetCryptoLibName probably needs revamp first
+//    if (xmlSecCryptoDLLoadLibrary(PyXmlSec_GetCryptoLibName()) < 0) {
+    if (xmlSecCryptoDLLoadLibrary("nss") < 0) {
         PyXmlSec_SetLastError("cannot load crypto library for xmlsec.");
         PyXmlSec_Free(_PYXMLSEC_FREE_XMLSEC);
         return -1;
@@ -75,7 +81,7 @@ static int PyXmlSec_Init(void) {
 #endif /* XMLSEC_CRYPTO_DYNAMIC_LOADING */
 
   /* Init crypto library */
-    if (xmlSecCryptoAppInit(NULL) < 0) {
+    if (xmlSecCryptoAppInit(config) < 0) {
         PyXmlSec_SetLastError("cannot initialize crypto library application.");
         PyXmlSec_Free(_PYXMLSEC_FREE_CRYPTOLIB);
         return -1;
@@ -95,12 +101,23 @@ static char PyXmlSec_PyInit__doc__[] = \
     "init() -> None\n"
     "Initializes the library for general operation.\n\n"
     "This is called upon library import and does not need to be called\n"
-    "again :func:`~.shutdown` is called explicitly).\n";
-static PyObject* PyXmlSec_PyInit(PyObject *self) {
-   if (PyXmlSec_Init() < 0) {
+    "again (:func:`~.shutdown` is called explicitly).\n";
+static PyObject* PyXmlSec_PyInit(PyObject *self, PyObject *args, PyObject *kwargs) {
+    static char *kwlist[] = { "config", NULL };
+    const char* config = NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|z:init", kwlist, &config)) {
         return NULL;
-   }
-   Py_RETURN_NONE;
+    }
+
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
+
+    if (PyXmlSec_Config_Init(config) < 0) {
+         return NULL;
+    }
+    Py_RETURN_NONE;
 }
 
 static char PyXmlSec_PyShutdown__doc__[] = \
@@ -161,7 +178,7 @@ static PyMethodDef PyXmlSec_MainMethods[] = {
     {
         "init",
         (PyCFunction)PyXmlSec_PyInit,
-        METH_NOARGS,
+        METH_VARARGS|METH_KEYWORDS,
         PyXmlSec_PyInit__doc__
     },
     {
