@@ -42,3 +42,8 @@ jobs:
           /Library/Developer/CommandLineTools/usr/bin/llvm-profdata merge -sparse ${{ env.LLVM_PROFILE_FILE }} -output pyxmlsec.profdata
           /Library/Developer/CommandLineTools/usr/bin/llvm-cov show ${{ env.PYXMLSEC_LIBFILE }} -instr-profile=pyxmlsec.profdata src > coverage.txt
           bash <(curl -s https://codecov.io/bash) -f coverage.txt
+      - name: Publish artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: wheel
+          path: dist/xmlsec-*-macosx_*.whl
